@@ -38,3 +38,7 @@ CREATE TABLE IF NOT EXISTS chat_messages_by_id (
     updated_at TIMESTAMP,
     PRIMARY KEY ((order_id), message_id)
 );
+
+ALTER TABLE chats_by_order WITH cdc = {'enabled': true, 'preimage': 'full', 'postimage': true};
+ALTER TABLE chat_messages_by_order WITH cdc = {'enabled': true, 'preimage': 'full', 'postimage': true};
+ALTER TABLE chat_messages_by_id WITH cdc = {'enabled': true, 'preimage': 'full', 'postimage': true};

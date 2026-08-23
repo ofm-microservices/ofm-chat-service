@@ -3,11 +3,11 @@ package appfx
 import (
 	"context"
 
-	"github.com/ofm-microservices/ofm-common/pkg/logging"
 	"chat-service/config"
 	app "chat-service/internal/application"
-	events "chat-service/internal/presentation/event_broker/nats"
+	events "chat-service/internal/presentation/event_broker/kafka"
 	grpcsrv "chat-service/internal/presentation/grpc"
+	"github.com/ofm-microservices/ofm-common/pkg/logging"
 
 	"go.uber.org/fx"
 )
@@ -24,18 +24,28 @@ var PresentationModule = fx.Options(
 	),
 )
 
-// ProvideChatLifecycleSubscriber constructs the NATS subscriber that consumes chat lifecycle commands.
+// ProvideChatLifecycleSubscriber constructs the Kafka subscriber that consumes chat lifecycle commands.
 func ProvideChatLifecycleSubscriber(broker app.EventBroker, svc app.Service, cfg *config.Config, lg logging.Logger) (events.ChatLifecycleSubscriber, error) {
-	return events.NewChatLifecycleSubscriber(broker, svc, cfg.NATS, lg)
+	return events.NewChatLifecycleSubscriber(broker, svc, cfg.Kafka, lg)
 }
 
 // InvokeSubscribeChatLifecycle starts the chat lifecycle subscriptions.
 func InvokeSubscribeChatLifecycle(lc fx.Lifecycle, sub events.ChatLifecycleSubscriber, lg logging.Logger) {
+	var cancel context.CancelFunc
 	lc.Append(fx.Hook{
 		OnStart: func(context.Context) error {
-			if err := sub.Subscribe(context.Background()); err != nil {
-				lg.Error("subscribe chat lifecycle failed", logging.Err(err))
-				return err
+			runCtx, runCancel := context.WithCancel(context.Background())
+			cancel = runCancel
+			go func() {
+				if err := sub.Subscribe(runCtx); err != nil && runCtx.Err() == nil {
+					lg.Error("subscribe chat lifecycle failed", logging.Err(err))
+				}
+			}()
+			return nil
+		},
+		OnStop: func(context.Context) error {
+			if cancel != nil {
+				cancel()
 			}
 			return nil
 		},

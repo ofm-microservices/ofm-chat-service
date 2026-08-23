@@ -9,9 +9,10 @@ import (
 	"strconv"
 	"strings"
 
+	"chat-service/config"
 	"github.com/gocql/gocql"
 	"github.com/ofm-microservices/ofm-common/pkg/logging"
-	"chat-service/config"
+	"github.com/ofm-microservices/ofm-common/pkg/observability/cql"
 )
 
 // RunMigrations applies the Scylla CQL migrations used by chat-service.
@@ -20,6 +21,7 @@ func RunMigrations(cfg config.ScyllaConfig, log logging.Logger) error {
 		return ErrNilLogger
 	}
 	cluster := gocql.NewCluster(cfg.Hosts...)
+	cluster.QueryObserver = cql.Observer{Service: "chat-service/migrations"}
 	cluster.Port = cfg.Port
 	cluster.Timeout = cfg.ConnectTimeout
 	cluster.ConnectTimeout = cfg.ConnectTimeout

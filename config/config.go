@@ -12,6 +12,7 @@ type Config struct {
 	Crypto  CryptoConfig      `envPrefix:"CRYPTO_"`
 	File    FileServiceConfig `envPrefix:"FILE_SERVICE_"`
 	NATS    NATSConfig        `envPrefix:"NATS_"`
+	Kafka   KafkaConfig       `envPrefix:"KAFKA_"`
 }
 
 // Load parses the service config from environment variables.
