@@ -7,8 +7,7 @@ import (
 	app "chat-service/internal/application"
 	eb "chat-service/internal/presentation/event_broker"
 	broker "chat-service/internal/presentation/event_broker/kafka"
-	scyllastore "chat-service/pkg/storage/scylla"
-	"github.com/gocql/gocql"
+	"github.com/jmoiron/sqlx"
 	"github.com/ofm-microservices/ofm-common/pkg/idempotency"
 	"github.com/ofm-microservices/ofm-common/pkg/logging"
 
@@ -25,9 +24,19 @@ func ProvideEventBroker(lc fx.Lifecycle, cfg *config.Config, lg logging.Logger) 
 	return provideEventBroker(lc, cfg, lg, nil)
 }
 
-// ProvideEventBrokerWithStore wires Kafka with durable Scylla event claims.
-func ProvideEventBrokerWithStore(lc fx.Lifecycle, cfg *config.Config, lg logging.Logger, db *gocql.Session) (app.EventBroker, error) {
-	return provideEventBroker(lc, cfg, lg, scyllastore.NewEventStore(db))
+// ProvideEventBrokerWithStore wires Kafka with durable PostgreSQL event claims.
+func ProvideEventBrokerWithStore(lc fx.Lifecycle, cfg *config.Config, lg logging.Logger, db *sqlx.DB) (app.EventBroker, error) {
+	return provideEventBroker(lc, cfg, lg, &sqlEventStore{db: db})
+}
+
+type sqlEventStore struct{ db *sqlx.DB }
+
+func (s *sqlEventStore) Claim(ctx context.Context, event idempotency.Event) (bool, error) {
+	return idempotency.ClaimDB(ctx, s.db, event)
+}
+
+func (s *sqlEventStore) Release(ctx context.Context, eventID string) error {
+	return idempotency.Release(ctx, s.db, eventID)
 }
 
 func provideEventBroker(lc fx.Lifecycle, cfg *config.Config, lg logging.Logger, store idempotency.Store) (app.EventBroker, error) {
