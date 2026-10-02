@@ -2,6 +2,7 @@ package appfx
 
 import (
 	"context"
+	"time"
 
 	"chat-service/config"
 	app "chat-service/internal/application"
@@ -16,13 +17,49 @@ import (
 var PresentationModule = fx.Options(
 	fx.Provide(
 		ProvideChatLifecycleSubscriber,
+		ProvideRecoverySubscriber,
 		ProvideGRPCServer,
 	),
 	fx.Invoke(
 		InvokeSubscribeChatLifecycle,
+		InvokeSubscribeRecovery,
 		InvokeRunGRPCServer,
 	),
 )
+
+// ProvideRecoverySubscriber constructs the chat-owned migration consumer.
+func ProvideRecoverySubscriber(broker app.EventBroker, svc app.Service, cfg *config.Config, lg logging.Logger) (events.RecoverySubscriber, error) {
+	return events.NewRecoverySubscriber(broker, svc, cfg.Kafka, lg)
+}
+
+// InvokeSubscribeRecovery starts chat recovery consumption during startup.
+func InvokeSubscribeRecovery(lc fx.Lifecycle, sub events.RecoverySubscriber, lg logging.Logger) {
+	var cancel context.CancelFunc
+	lc.Append(fx.Hook{OnStart: func(context.Context) error {
+		ctx, stop := context.WithCancel(context.Background())
+		cancel = stop
+		go func() {
+			for ctx.Err() == nil {
+				if err := sub.Subscribe(ctx); err != nil && ctx.Err() == nil {
+					lg.Error("chat recovery consumer stopped; retrying", logging.Err(err))
+					timer := time.NewTimer(time.Second)
+					select {
+					case <-ctx.Done():
+						timer.Stop()
+						return
+					case <-timer.C:
+					}
+				}
+			}
+		}()
+		return nil
+	}, OnStop: func(context.Context) error {
+		if cancel != nil {
+			cancel()
+		}
+		return nil
+	}})
+}
 
 // ProvideChatLifecycleSubscriber constructs the Kafka subscriber that consumes chat lifecycle commands.
 func ProvideChatLifecycleSubscriber(broker app.EventBroker, svc app.Service, cfg *config.Config, lg logging.Logger) (events.ChatLifecycleSubscriber, error) {
