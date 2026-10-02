@@ -7,7 +7,7 @@ type Config struct {
 	App     AppConfig         `envPrefix:"APP_"`
 	GRPC    GRPCConfig        `envPrefix:"GRPC_"`
 	Metrics MetricsConfig     `envPrefix:"METRICS_"`
-	Scylla  ScyllaConfig      `envPrefix:"SCYLLA_"`
+	DB      DBConfig          `envPrefix:"DB_"`
 	Cursor  CursorConfig      `envPrefix:"CURSOR_"`
 	Crypto  CryptoConfig      `envPrefix:"CRYPTO_"`
 	File    FileServiceConfig `envPrefix:"FILE_SERVICE_"`
