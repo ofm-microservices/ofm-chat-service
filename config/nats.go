@@ -2,7 +2,8 @@ package config
 
 // NATSConfig defines the NATS subjects owned or consumed by chat-service.
 type NATSConfig struct {
-	URL      string `env:"URL,required"`
+	// URL is retained only for compatibility with the removed NATS adapter.
+	URL      string `env:"URL"`
 	User     string `env:"USER"`
 	Password string `env:"PASSWORD"`
 

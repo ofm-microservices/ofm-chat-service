@@ -31,5 +31,6 @@ func ProvideMessageCipher(cfg *config.Config) (app.MessageCipher, error) {
 
 // ProvideService constructs the chat application service.
 func ProvideService(chats domain.ChatRepository, msgs domain.MessageRepository, files app.FileClient, broker app.EventBroker, cur app.CursorCodec, cipher app.MessageCipher, cfg *config.Config, lg logging.Logger) (app.Service, error) {
-	return app.New(chats, msgs, files, broker, cur, cipher, cfg.NATS, lg)
+	legacyCfg := config.NATSConfig{RealtimeSubject: cfg.Kafka.RealtimeTopic}
+	return app.New(chats, msgs, files, broker, cur, cipher, legacyCfg, lg)
 }

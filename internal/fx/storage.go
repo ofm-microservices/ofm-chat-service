@@ -1,38 +1,34 @@
 package appfx
 
 import (
-	"context"
-
-	"github.com/gocql/gocql"
-	"github.com/ofm-microservices/ofm-common/pkg/logging"
 	"chat-service/config"
-	scyllastore "chat-service/pkg/storage/scylla"
-
+	pgstore "chat-service/pkg/storage/postgres"
+	"context"
+	"github.com/jmoiron/sqlx"
+	"github.com/ofm-microservices/ofm-common/pkg/logging"
 	"go.uber.org/fx"
 )
 
-// StorageModule provides the Scylla session used by the chat.
-var StorageModule = fx.Options(
-	fx.Invoke(InvokeRunMigrations),
-	fx.Provide(ProvideScyllaSession),
-)
+// StorageModule provides the PostgreSQL database used by chat-service.
+var StorageModule = fx.Options(fx.Invoke(InvokeRunMigrations), fx.Provide(ProvidePostgresDB))
 
-// InvokeRunMigrations applies the saga's CQL migrations before the session is opened.
+// InvokeRunMigrations applies the chat PostgreSQL schema before repositories start.
 func InvokeRunMigrations(cfg *config.Config, lg logging.Logger) error {
-	if err := scyllastore.RunMigrations(cfg.Scylla, lg); err != nil {
-		lg.Error("run migrations failed", logging.Err(err))
+	if err := pgstore.RunMigrations(cfg.DB); err != nil {
+		lg.Error("run PostgreSQL migrations failed", logging.Err(err))
 		return err
 	}
-	lg.Info("migrations applied")
+	lg.Info("PostgreSQL migrations applied")
 	return nil
 }
 
-// ProvideScyllaSession connects to Scylla after migrations have been applied.
-func ProvideScyllaSession(lc fx.Lifecycle, cfg *config.Config, lg logging.Logger) (*gocql.Session, error) {
-	session, err := scyllastore.ConnectAndEnsureSchema(cfg.Scylla, lg)
+// ProvidePostgresDB opens the service-owned PostgreSQL connection pool.
+func ProvidePostgresDB(lc fx.Lifecycle, cfg *config.Config, lg logging.Logger) (*sqlx.DB, error) {
+	db, err := pgstore.Open(cfg.DB)
 	if err != nil {
 		return nil, err
 	}
-	lc.Append(fx.Hook{OnStop: func(context.Context) error { session.Close(); return nil }})
-	return session, nil
+	lc.Append(fx.Hook{OnStop: func(context.Context) error { return db.Close() }})
+	lg.Info("PostgreSQL connected")
+	return db, nil
 }

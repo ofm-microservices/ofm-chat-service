@@ -77,6 +77,7 @@ type GetOrderChatCommand struct {
 // CreateMessageCommand stores one new message in an open chat.
 type CreateMessageCommand struct {
 	OrderID       string
+	MessageID     string
 	UserID        string
 	Text          string
 	AttachmentIDs []string
@@ -179,6 +180,13 @@ type GetOrderChatResult struct {
 
 // RealtimeEnvelope is the shared realtime payload published to the fanout subject.
 type RealtimeEnvelope struct {
+	EventID       string          `json:"event_id,omitempty"`
+	OperationID   string          `json:"operation_id,omitempty"`
+	CorrelationID string          `json:"correlation_id,omitempty"`
+	AggregateType string          `json:"aggregate_type,omitempty"`
+	AggregateID   string          `json:"aggregate_id,omitempty"`
+	Status        string          `json:"status,omitempty"`
+	OccurredAt    string          `json:"occurred_at,omitempty"`
 	ConnectionID  string          `json:"connection_id,omitempty"`
 	UserID        string          `json:"user_id,omitempty"`
 	DeliveryScope string          `json:"delivery_scope,omitempty"`

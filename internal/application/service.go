@@ -201,10 +201,14 @@ func (s *service) CreateMessage(ctx context.Context, cmd CreateMessageCommand) (
 	case text == "" && len(attachments) > 0:
 		msgType = domain.MessageTypeFile
 	}
+	messageID := strings.TrimSpace(cmd.MessageID)
+	if messageID == "" {
+		messageID = uuid.Must(uuid.NewV7()).String()
+	}
 
 	msg, err := s.msgs.Create(ctx, domain.CreateMessageParams{
 		OrderID:      cmd.OrderID,
-		MessageID:    uuid.Must(uuid.NewV7()).String(),
+		MessageID:    messageID,
 		SenderUserID: cmd.UserID,
 		MessageType:  msgType,
 		Ciphertext:   ciphertext,
@@ -480,6 +484,11 @@ func (s *service) publishRealtimeMessage(ctx context.Context, chat *domain.Chat,
 	}
 	for _, userID := range []string{chat.BuyerID, chat.SellerID} {
 		env, err := json.Marshal(RealtimeEnvelope{
+			EventID:       view.MessageID,
+			AggregateType: "chat",
+			AggregateID:   chat.OrderID,
+			Status:        "completed",
+			OccurredAt:    view.UpdatedAt,
 			UserID:        userID,
 			DeliveryScope: "user",
 			Type:          eventType,

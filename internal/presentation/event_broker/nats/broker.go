@@ -7,10 +7,11 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/nats-io/nats.go"
-	"github.com/ofm-microservices/ofm-common/pkg/logging"
 	"chat-service/config"
 	eb "chat-service/internal/presentation/event_broker"
+	"github.com/nats-io/nats.go"
+	"github.com/ofm-microservices/ofm-common/pkg/logging"
+	"github.com/ofm-microservices/ofm-common/pkg/resilience"
 )
 
 type broker struct {
@@ -53,7 +54,16 @@ func (b *broker) Publish(_ context.Context, subject string, payload []byte) erro
 // Subscribe starts a simple synchronous subscription.
 func (b *broker) Subscribe(_ context.Context, subject string, handler eb.MessageHandler) error {
 	_, err := b.conn.Subscribe(subject, func(msg *nats.Msg) {
-		_ = handler(context.Background(), msg.Subject, msg.Data)
+		handlerCtx := context.Background()
+		err := resilience.Retry(handlerCtx, resilience.RetryPolicyFromEnv(), func(callCtx context.Context, _ int) error {
+			return handler(callCtx, msg.Subject, msg.Data)
+		})
+		if err != nil {
+			b.log.Error("message handler exhausted retries", logging.String("subject", msg.Subject), logging.Err(err))
+			if publishErr := b.conn.Publish(subject+".dead-letter", msg.Data); publishErr != nil {
+				b.log.Error("nats dead-letter publish failed", logging.String("subject", subject), logging.Err(publishErr))
+			}
+		}
 	})
 	if err != nil {
 		return err
